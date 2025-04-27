@@ -1,48 +1,126 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container">
-    <div class="row">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1>{{ event.title }}</h1>
-            <div>
-            {% if user_is_organizer %}
-                <a
-                    href="{% url 'event_edit' event.id %}"
-                    class="btn btn-outline-primary me-2"
-                >
-                    <i class="bi bi-pencil me-1"></i>Editar
-                </a>
-            {% endif %}
-        </div>
+<div class="container mt-4">
+
+  {% if messages %}
+    <div class="alert alert-info">
+      {% for message in messages %}
+        <p>{{ message }}</p>
+      {% endfor %}
     </div>
-    <div class="row">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Detalles del Evento</h5>
-                <p class="card-text">{{ event.description }}</p>
-                <div class="mt-4">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="bi bi-calendar-event text-primary"></i>
-                        </div>
-                        <div>
-                            <h6 class="mb-0">Fecha y Hora</h6>
-                            <p class="mb-0">{{ event.scheduled_at|date:"l, j \\d\\e F \\d\\e Y, H:i" }}</p>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="bg-light rounded-circle p-2 me-3">
-                            <i class="bi bi-person text-primary"></i>
-                        </div>
-                        <div>
-                            <h6 class="mb-0">Organizador</h6>
-                            <p class="mb-0">{{ event.organizer }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  {% endif %}
+
+  <!-- Detalles del evento -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2>{{ event.title }}</h2>
+      <p class="text-muted">{{ event.scheduled_at|date:"l, d \\d\\e F \\d\\e Y, H:i" }}</p>
+      <p>{{ event.description }}</p>
+      <hr>
+      <p><strong>Organizador:</strong> {{ event.organizer }}</p>
     </div>
+  </div>
+
+  <!-- Calificaciones -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h4>Calificaciones y Reseñas ({{ ratings.count }})</h4>
+
+      {% if event.rating_set.exists %}
+      {% for rating in ratings %}
+      {% if not rating.bl_baja %}
+          <div class="mb-4 border-bottom pb-3">
+              <div class="d-flex justify-content-between">
+                  <strong>{{ rating.user.username }}</strong>
+                  <small class="text-muted">{{ rating.created_at|date:"d M Y, H:i" }}</small>
+              </div>
+              <div class="fw-semibold">{{ rating.title }}</div>
+              <div class="text-warning">
+                  {% for i in "12345" %}
+                      {% if forloop.counter <= rating.rating %}
+                          ★
+                      {% else %}
+                          ☆
+                      {% endif %}
+                  {% endfor %}
+              </div>
+              <p class="text-muted mt-2">{{ rating.text }}</p>
+  
+              {% if user.is_authenticated %}
+                  {% if user == rating.user or user == event.organizer %}
+                      <form method="post" action="{% url 'delete_rating_admin' event.id rating.id %}">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                      </form>
+                  {% endif %}
+              {% endif %}
+          </div>
+      {% endif %}
+  {% endfor %}
+  
+      {% else %}
+        <p class="text-muted">Este evento aún no tiene calificaciones.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Botón Calificación -->
+  {% if user.is_authenticated %}
+  <div class="card mb-5">
+    <div class="card-body">
+      <h4>{% if user_rating %}Modificar tu calificación{% else %}Calificar este evento*{% endif %}</h4>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="rating" id="rating" value="{{ user_rating.rating|default:0 }}">
+
+        <!-- Estrellas -->
+        <div class="rating-stars mb-3">
+          {% for i in "12345" %}
+            <label data-value="{{ forloop.counter }}" style="font-size: 28px; cursor: pointer;" class="star-label">
+              {% if user_rating and forloop.counter <= user_rating.rating %}
+                <span style="color: #f39c12;">★</span>
+              {% else %}
+                <span style="color: #ccc;">☆</span>
+              {% endif %}
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="mb-3">
+          {{ form.title.label_tag }} {{ form.title }}
+        </div>
+        <div class="mb-3">
+          {{ form.text.label_tag }} 
+          <textarea name="text" id="id_text" rows="3" class="form-control">{{ form.text.value|default:'' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          {% if user_rating %}Actualizar{% else %}Enviar calificación{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
+
+<!-- Estrellas -->
+<script>
+  const stars = document.querySelectorAll(".star-label");
+  const ratingInput = document.getElementById("rating");
+
+  stars.forEach((star, index) => {
+    star.addEventListener("click", () => {
+      const value = star.getAttribute("data-value");
+      ratingInput.value = value;
+
+      stars.forEach((s, i) => {
+        const starIcon = s.querySelector("span");
+        starIcon.style.color = i < value ? "#f39c12" : "#ccc";
+      });
+    });
+  });
+</script>
+
 {% endblock %}

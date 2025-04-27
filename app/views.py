@@ -3,7 +3,9 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-
+from .forms import RatingForm
+from django.contrib import messages
+from .models import Rating, Event
 from .models import Event, User
 
 
@@ -125,3 +127,30 @@ def event_form(request, id=None):
         "app/event_form.html",
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
+
+def add_or_edit_rating(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    rating_instance = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
+    if request.method == "POST":
+        form = RatingForm(request.POST, instance=rating_instance)
+        rating_value = request.POST.get("rating")
+
+        if form.is_valid() and rating_value:
+            rating = form.save(commit=False)
+            rating.event = event
+            rating.user = request.user
+            rating.rating = int(rating_value)
+
+            rating.save()
+            messages.success(request, "Tu calificación se ha guardado.")
+            return redirect("event_detail", id=event.id)
+        else:
+            messages.error(request, "Por favor, completa todos los campos.")
+    else:
+        form = RatingForm(instance=rating_instance)
+
+    return render(request, "app/add_rating.html", {
+        "form": form,
+        "event": event,
+        "rating_instance": rating_instance,
+    })

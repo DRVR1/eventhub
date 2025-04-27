@@ -1,0 +1,30 @@
+
+from django import forms
+from .models import Rating
+
+class RatingForm(forms.ModelForm):
+    class Meta:
+        model = Rating
+        fields = ['title', 'text', 'rating']
+        widgets = {
+            'rating': forms.HiddenInput(),
+            'text': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 5,
+                'placeholder': 'Escribe tu opinión aquí...'
+            }),
+            'title': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Título'
+            }),
+        }
+        labels = {
+            'title': 'Título de la calificación*',
+            'text': 'Tu reseña(opcional)',
+        }
+
+    def clean_text(self):
+        text = self.cleaned_data.get('text')
+        if text is None or text == '':
+            return ''
+        return text
