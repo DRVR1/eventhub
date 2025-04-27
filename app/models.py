@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.conf import settings
 
 
 class User(AbstractUser):
@@ -73,3 +74,18 @@ class Event(models.Model):
         self.organizer = organizer or self.organizer
 
         self.save()
+
+class Rating(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    event=models.ForeignKey("Event",on_delete=models.CASCADE)
+    title = models.CharField(max_length=250)
+    text=models.CharField(max_length=350,blank=True,null=True)
+    rating = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    bl_baja = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("event", "user")
+
+    def __str__(self):
+        return f"self.title ({self.rating}/5)"
