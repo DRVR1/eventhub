@@ -70,10 +70,59 @@ def events(request):
     )
 
 
-@login_required
+from .forms import RatingForm
+
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
-    return render(request, "app/event_detail.html", {"event": event})
+    user_rating = None
+    ratings = event.rating_set.filter(bl_baja=False)
+
+    if request.user.is_authenticated:
+        user_rating = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
+
+    user_is_organizer = request.user == event.organizer
+    form = None
+
+    if request.user.is_authenticated:
+        if request.method == "POST":
+            rating_value = request.POST.get("rating")
+            title = request.POST.get("title")
+            text = request.POST.get("text")
+
+
+            existing_rating = Rating.objects.filter(event=event, user=request.user).first()
+
+            if existing_rating:
+                form = RatingForm(request.POST, instance=existing_rating)
+            else:
+                form = RatingForm(request.POST)
+
+            if form.is_valid() and rating_value:
+                rating = form.save(commit=False)
+                rating.event = event
+                rating.user = request.user
+                rating.rating = int(rating_value)
+                rating.bl_baja = False
+                rating.save()
+
+                messages.success(request, "Tu calificación se ha guardado.")
+                return redirect("event_detail", id=event.id)
+            else:
+                messages.error(request, "Por favor, completá todos los campos.")
+        else:
+            form = RatingForm(instance=user_rating)
+
+    #Conteo de calificaciones activas
+    active_ratings_count = ratings.count()
+
+    return render(request, "app/event_detail.html", {
+        "event": event,
+        "ratings": ratings,
+        "user_rating": user_rating,
+        "form": form,
+        "user_is_organizer": user_is_organizer,
+        "active_ratings_count": active_ratings_count,
+    })
 
 
 @login_required
@@ -154,3 +203,27 @@ def add_or_edit_rating(request, event_id):
         "event": event,
         "rating_instance": rating_instance,
     })
+@login_required
+def delete_rating(request, event_id, rating_id=None):
+    event = get_object_or_404(Event, id=event_id)
+
+    if rating_id:
+        rating_instance = get_object_or_404(Rating, id=rating_id, event=event)
+    else:
+        rating_instance = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
+
+    if (
+        rating_instance is None
+        or (
+            rating_instance.user != request.user
+            and request.user != event.organizer
+        )
+    ):
+        messages.error(request, "No tenés permiso para eliminar esta calificación.")
+        return redirect("event_detail", id=event.id)
+
+    rating_instance.bl_baja = True
+    rating_instance.save()
+
+    messages.success(request, "La calificación ha sido eliminada.")
+    return redirect("event_detail", id=event.id)
