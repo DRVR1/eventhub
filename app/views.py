@@ -1,5 +1,6 @@
 import datetime
 from django.contrib.auth import authenticate, login
+from django.db import IntegrityError
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -72,57 +73,22 @@ def events(request):
 
 from .forms import RatingForm
 
+@login_required
 def event_detail(request, id):
     event = get_object_or_404(Event, pk=id)
+    #Busca los ratings activos
+    visible_ratings = event.rating_set.filter(bl_baja=False, is_current=True)
+    
     user_rating = None
-    ratings = event.rating_set.filter(bl_baja=False)
-
     if request.user.is_authenticated:
-        user_rating = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
-
-    user_is_organizer = request.user == event.organizer
-    form = None
-
-    if request.user.is_authenticated:
-        if request.method == "POST":
-            rating_value = request.POST.get("rating")
-            title = request.POST.get("title")
-            text = request.POST.get("text")
-
-
-            existing_rating = Rating.objects.filter(event=event, user=request.user).first()
-
-            if existing_rating:
-                form = RatingForm(request.POST, instance=existing_rating)
-            else:
-                form = RatingForm(request.POST)
-
-            if form.is_valid() and rating_value:
-                rating = form.save(commit=False)
-                rating.event = event
-                rating.user = request.user
-                rating.rating = int(rating_value)
-                rating.bl_baja = False
-                rating.save()
-
-                messages.success(request, "Tu calificación se ha guardado.")
-                return redirect("event_detail", id=event.id)
-            else:
-                messages.error(request, "Por favor, completá todos los campos.")
-        else:
-            form = RatingForm(instance=user_rating)
-
-    #Conteo de calificaciones activas
-    active_ratings_count = ratings.count()
-
+        user_rating = Rating.objects.filter(user=request.user, event=event, is_current=True, bl_baja=False).first()
+    
     return render(request, "app/event_detail.html", {
         "event": event,
-        "ratings": ratings,
-        "user_rating": user_rating,
-        "form": form,
-        "user_is_organizer": user_is_organizer,
-        "active_ratings_count": active_ratings_count,
+        "ratings": visible_ratings,
+        "user_rating": user_rating
     })
+
 
 
 @login_required
@@ -177,53 +143,90 @@ def event_form(request, id=None):
         {"event": event, "user_is_organizer": request.user.is_organizer},
     )
 
-def add_or_edit_rating(request, event_id):
-    event = get_object_or_404(Event, id=event_id)
-    rating_instance = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
+from django.db import IntegrityError
+from django.db.transaction import atomic
+
+@login_required
+def create_rating(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    
     if request.method == "POST":
-        form = RatingForm(request.POST, instance=rating_instance)
-        rating_value = request.POST.get("rating")
-
-        if form.is_valid() and rating_value:
-            rating = form.save(commit=False)
-            rating.event = event
-            rating.user = request.user
-            rating.rating = int(rating_value)
-
-            rating.save()
-            messages.success(request, "Tu calificación se ha guardado.")
+        form = RatingForm(request.POST)
+        rating_value = request.POST.get("rating", "0")
+        
+        if form.is_valid() and 1 <= int(rating_value) <= 5:
+            # Desactiva los ratings del usuario
+            Rating.objects.filter(
+                event=event,
+                user=request.user,
+                is_current=True
+            ).update(is_current=False)
+            
+            # Crear nueva calificación
+            Rating.objects.create(
+                event=event,
+                user=request.user,
+                title=form.cleaned_data['title'],
+                text=form.cleaned_data['text'],
+                rating=int(rating_value),
+                is_current=True,
+                bl_baja=False
+            )
+            messages.success(request, "Calificación guardada correctamente")
             return redirect("event_detail", id=event.id)
         else:
-            messages.error(request, "Por favor, completa todos los campos.")
-    else:
-        form = RatingForm(instance=rating_instance)
+            messages.error(request, "Error en el formulario. Verifica los datos.")
+    
+    # Muestra formulario
+    form = RatingForm()
+    return render(request, "app/create_rating.html", {
+        "form": form,
+        "event": event
+    })
 
-    return render(request, "app/add_rating.html", {
+
+@login_required
+def update_rating(request, event_id, rating_id):
+    event = get_object_or_404(Event, pk=event_id)
+    rating = get_object_or_404(Rating, pk=rating_id, user=request.user)
+    
+    if request.method == "POST":
+        form = RatingForm(request.POST, instance=rating)
+        rating_value = request.POST.get("rating", str(rating.rating))
+        
+        if form.is_valid() and 1 <= int(rating_value) <= 5:
+            form.save()
+            messages.success(request, "Calificación actualizada correctamente")
+            return redirect("event_detail", id=event.id)
+        else:
+            messages.error(request, "Error en el formulario")
+    
+    form = RatingForm(instance=rating)
+    return render(request, "app/update_rating.html", {
         "form": form,
         "event": event,
-        "rating_instance": rating_instance,
+        "rating": rating
+    })
+
+@login_required
+def list_ratings(request, event_id):
+    event = get_object_or_404(Event, pk=event_id)
+    ratings = event.rating_set.filter(bl_baja=False).order_by('-created_at')
+    user_rating = ratings.filter(user=request.user).first()
+    
+    return render(request, "app/list_ratings.html", {
+        "event": event,
+        "ratings": ratings,
+        "user_rating": user_rating
     })
 @login_required
-def delete_rating(request, event_id, rating_id=None):
-    event = get_object_or_404(Event, id=event_id)
+def delete_rating(request, event_id, rating_id):
+    rating = get_object_or_404(Rating, id=rating_id, event_id=event_id)
 
-    if rating_id:
-        rating_instance = get_object_or_404(Rating, id=rating_id, event=event)
+    if request.user == rating.user or request.user == rating.event.organizer:
+        rating.soft_delete()  #Manejo de la baja logica
+        messages.success(request, "Calificación eliminada correctamente.")
     else:
-        rating_instance = Rating.objects.filter(event=event, user=request.user, bl_baja=False).first()
+        messages.error(request, "No tienes permiso para eliminar esta calificación.")
 
-    if (
-        rating_instance is None
-        or (
-            rating_instance.user != request.user
-            and request.user != event.organizer
-        )
-    ):
-        messages.error(request, "No tenés permiso para eliminar esta calificación.")
-        return redirect("event_detail", id=event.id)
-
-    rating_instance.bl_baja = True
-    rating_instance.save()
-
-    messages.success(request, "La calificación ha sido eliminada.")
-    return redirect("event_detail", id=event.id)
+    return redirect('event_detail', id=event_id)

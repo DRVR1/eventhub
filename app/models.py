@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class User(AbstractUser):
@@ -76,16 +77,26 @@ class Event(models.Model):
         self.save()
 
 class Rating(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    event=models.ForeignKey("Event",on_delete=models.CASCADE)
-    title = models.CharField(max_length=250)
-    text=models.CharField(max_length=350,blank=True,null=True)
-    rating = models.IntegerField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    title = models.CharField(max_length=100)
+    text = models.TextField(blank=True)
+    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     created_at = models.DateTimeField(auto_now_add=True)
     bl_baja = models.BooleanField(default=False)
+    is_current = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ("event", "user")
-
-    def __str__(self):
-        return f"self.title ({self.rating}/5)"
+        constraints = [
+        models.UniqueConstraint(
+            fields=['user', 'event'],
+            condition=models.Q(is_current=True, bl_baja=False),
+            name='unique_active_rating_per_user_event'
+        )
+    ]
+    #Eliminacion logica
+    def soft_delete(self):
+        """Marcar como eliminado lógicamente"""
+        self.bl_baja = True
+        self.is_current = False
+        self.save()

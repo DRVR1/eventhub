@@ -13,6 +13,9 @@ urlpatterns = [
     path("events/<int:id>/edit/", views.event_form, name="event_edit"),
     path("events/<int:id>/", views.event_detail, name="event_detail"),
     path("events/<int:id>/delete/", views.event_delete, name="event_delete"),
-    path('events/<int:event_id>/rate/delete/', views.delete_rating, name='delete_rating'),path('eventos/<int:event_id>/calificacion/<int:rating_id>/eliminar/', views.delete_rating, name='delete_rating_admin'),
+    path('event/<int:event_id>/rating/create/', views.create_rating, name='create_rating'),
+    path('event/<int:event_id>/rating/<int:rating_id>/update/', views.update_rating, name='update_rating'),
+    path('event/<int:event_id>/rating/<int:rating_id>/delete/', views.delete_rating, name='delete_rating'),
+    path('event/<int:event_id>/ratings/', views.list_ratings, name='list_ratings'),
 
 ]
