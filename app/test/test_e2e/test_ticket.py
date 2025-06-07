@@ -141,9 +141,15 @@ class TicketModelTest(BaseE2ETest):
         print(f"reembolsos: {reembolsos}")        
         self.assertEqual(reembolsos.count(), 1)
 
+        # El usuario va a sus reembolsos y ve que tiene uno activo
+        self.page.goto(f"{self.live_server_url}/refund/myrefund/")
+        items = self.page.query_selector_all(".list-group-item")
+        pendientes = [item for item in items if "Estado: Pendiente" in item.inner_text()]
+        reembolsosActivos = len(pendientes)
+        print(f"Reembolsos activos antes de interaccion del usuario: {str(reembolsosActivos)}")
+
         # El usuario va a hacer un reembolso teniendo uno ya activo
         self.page.goto(f"{self.live_server_url}/refund/request/")
-
         # Rellenar el formulario
         self.page.fill("#ticket_code", str(ticket.ticket_code))
         self.page.select_option("#refund_reason", value="error_compra")
@@ -165,8 +171,11 @@ class TicketModelTest(BaseE2ETest):
         print(f"MENSAJE: {alert_message}")
         assert 'text' in alert_message, "Ya hay una solicitud de reembolso pendiente."
 
-        # Verifico que no se haya generado una nueva solicitud de reembolso
-        reembolsos = RefundRequest.objects.filter(requester=user)
-        print(f"reembolsos: {reembolsos}")        
-        self.assertEqual(reembolsos.count(), 1)
+        # El usuario va a sus reembolsos y ve que solo hay uno activo, es decir, no se agrego uno nuevo
+        self.page.goto(f"{self.live_server_url}/refund/myrefund/")
+        items = self.page.query_selector_all(".list-group-item")
+        pendientes = [item for item in items if "Estado: Pendiente" in item.inner_text()]
+        reembolsosActivos = len(pendientes)
+        print(f"Reembolsos activos luego de interaccion del usuario: {str(reembolsosActivos)}")
+        assert(reembolsosActivos == 1)
         
