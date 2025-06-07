@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
 import unittest
-from unittest import TestCase
+from django.test import TestCase
+from django.utils import timezone
 from unittest.mock import patch, MagicMock
 from app.models import *
 from app.views import *
@@ -95,3 +96,33 @@ class TicketUsuarioLimiteTest(unittest.TestCase):
         self.assertTrue(resultado) # Deberia devolver true, ya que sobrepasamos el limite
         if __name__ == '__main__':
             unittest.main()
+
+
+class TicketReembolsoTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(username="test_user")
+        self.userOrganizer = User.objects.create(username="test_user_organizer",is_organizer=True)
+        self.venue = Venue.objects.create(name="Teatro", capacity=100)
+        self.event = Event.objects.create(
+            title="Obra",
+            description="Una obra de teatro",
+            scheduled_at=timezone.now(),
+            organizer=self.userOrganizer,
+            venue=self.venue,
+        )
+        self.ticket = Ticket.objects.create(user=self.user, event=self.event, quantity=2, buy_date=timezone.now())
+
+    # Si el usuario no tiene una solicitud de reembolso activa, esta funcion debe devolver False.
+    def test_solicitud_reembolso_unica_no_activa(self):
+        self.assertFalse(posee_solicitud_reembolso_activa(self.user))
+
+    # Ahora el usuario quiere solicitar otra solicitud de reembolso aparte de la que ya posee
+    def test_solicitud_reembolso_unica_activa(self):
+        # Creamos una solicitud de reembolso
+        self.reembolso = RefundRequest.objects.create(
+            ticket_code=str(self.ticket.ticket_code),  
+            reason='no_asistencia',
+            requester=self.user
+        )
+        # Ahora la funcion deberia devolver True, que luego servira para NO otorgarle la nueva solicitud al usuario.
+        self.assertTrue(posee_solicitud_reembolso_activa(self.user))

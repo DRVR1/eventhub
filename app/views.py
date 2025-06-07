@@ -410,8 +410,25 @@ def view_comment(request, comment_id):
     return render(request, 'comments/view_comment.html', {'comment': comment})
 
 
+def posee_solicitud_reembolso_activa(user) -> bool:
+    '''
+    - Recibe como parametro un usuario
+    - Devuelve True si el usuario posee una solicitud de reembolso que esta activa, es decir, no fue aceptada ni rechazada.
+    - De lo contrario, devuelve False
+    '''
+    refunds = RefundRequest.objects.filter(
+            status=RefundRequest.Status.PENDING,
+            requester=user
+        )
+    if refunds.exists():
+        return True
+    else:
+        return False
+
+
 @login_required
 def solicitar_reembolso(request):
+    
     if request.method == "POST":
         ticket_code = request.POST.get("ticket_code")
         reason = request.POST.get("reason")     
@@ -426,6 +443,11 @@ def solicitar_reembolso(request):
             }
             return render(request, "request_form.html", context)
 
+        # Verificar que el usuario no tenga una solicitud de reembolso activa
+        if(posee_solicitud_reembolso_activa(request.user)):
+            messages.error(request, "Ya hay una solicitud de reembolso pendiente.")
+            return render(request, "request_form.html")
+
         refund_request = RefundRequest.objects.create(
             ticket_code=ticket_code,
             reason=reason,
@@ -436,7 +458,7 @@ def solicitar_reembolso(request):
 
         return redirect("events")
 
-
+    
     return render(request, "request_form.html")
 
 @login_required
