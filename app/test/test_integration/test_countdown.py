@@ -18,7 +18,7 @@ class CountdownIntegrationTest(TestCase):
         self.event = Event.objects.create(
             title='Concierto',
             description='Concierto',
-            scheduled_at=timezone.now() + timezone.timedelta(minutes=2),  # evento en 2 minutos
+            scheduled_at=timezone.now() + timezone.timedelta(minutes=2),  
             organizer=self.organizer,
             venue=self.venue,
         )
