@@ -3,6 +3,8 @@ from django.utils import timezone
 from datetime import timedelta
 from app.models import Event
 from app.test.test_e2e.base import BaseE2ETest
+from playwright.sync_api import expect
+import re
 
 class EventCountdownTest(BaseE2ETest):
 
@@ -25,11 +27,12 @@ class EventCountdownTest(BaseE2ETest):
         self.page.goto(f"{self.live_server_url}/events/{self.event.id}/")
 
         countdown = self.page.locator("#countdown-text")
-        self.assertTrue(countdown.is_visible())
-        countdown_text = countdown.inner_text()
-        self.assertRegex(countdown_text, r"Faltan \d+ días?, \d+ horas? y \d+ minutos?")
+        expect(countdown).to_be_visible()
+        pattern = re.compile(r"Faltan \d+ días?, \d+ horas? y \d+ minutos?")
+        expect(countdown).to_have_text(pattern)
 
     def test_organizador_no_ve_countdown(self):
         self.login_user("organizador", "password123")
         self.page.goto(f"{self.live_server_url}/events/{self.event.id}/")
-        self.assertEqual(self.page.locator("#countdown-text").count(), 0)
+        countdown = self.page.locator("#countdown-text")
+        expect(countdown).to_have_count(0)
