@@ -217,21 +217,23 @@ class TicketReembolsoTest(TestCase):
         return super().setUp()
     
     def test_ticket_reembolso_unico(self):
-
+        # Arrange
         # Iniciar sesion (el usuario ya tenia un reembolso activo de entrada)
         self.client.login(username="usuario_test", password="password123")
-
         url = reverse("solicitar_reembolso")
-
         data = {
             "ticket_code": str(self.ticket.ticket_code),
             "reason": "no_asistencia",
             "details": "no puedo asistir al evento. porfavor reembolsenme!"
         }
 
+        # Act
         # Hacemos la solicitud al servidor
         response = self.client.post(url, data, follow=True)
-        self.assertEqual(response.status_code, 200) 
+
+        # Assert
+        # Verificar status OK
+        self.assertEqual(response.status_code, 200)
 
         # Verificar que no se creó la nueva solicitud de rembolso
         reembolsos = RefundRequest.objects.filter(requester=self.user)        
@@ -244,3 +246,5 @@ class TicketReembolsoTest(TestCase):
 
         # Verificar que se redirige al formulario
         self.assertTemplateUsed(response, "request_form.html")
+
+        
