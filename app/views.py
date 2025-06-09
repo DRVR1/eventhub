@@ -258,10 +258,16 @@ def ticket_edit_form(request,ticket_code):
     return render(request, "app/ticket_edit_form.html",{"ticket":ticket})
 
 
-def ticket_excede_capacidad_maxima(event, quantity):
+def ticket_excede_capacidad_maxima(event, quantity) -> bool:
+    '''
+    Verifica que al comprar un ticket, no se superen los cupos maximos del espacio del evento.
+    Toma como parametros:
+    - Evento
+    - Cantidad de entradas a comprar en el ticket
+    '''
     capacidad_maxima = event.venue.capacity
     capacidad_utilizada = Ticket.objects.filter(event=event, bl_baja=0).aggregate(total=Sum("quantity"))["total"] or 0
-    print(f"capacidad utilizada: {capacidad_utilizada}")
+    # print(f"capacidad utilizada: {capacidad_utilizada}")
     if(capacidad_utilizada+quantity>capacidad_maxima):
         return True
     else:

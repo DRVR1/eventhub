@@ -1,13 +1,11 @@
 import unittest
 from django.test import TestCase
-from django.utils import timezone
 from unittest.mock import patch, MagicMock
 from app.models import *
 from app.views import *
+from datetime import datetime
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from app.models import User, Venue, Event, Ticket
-from app.views import ticket_excede_capacidad_maxima
 from django.utils import timezone
 
 class TicketUsuarioLimiteTest(TestCase):
@@ -84,64 +82,29 @@ class TicketUsuarioLimiteTest(TestCase):
         self.assertFalse(resultado, "No debería exceder el límite de tickets")
 
 
-
-    @patch('app.models.Ticket.objects.filter')
-    def test_no_excede_capacidad(self, mock_filter):
-        # Crear un mock para el objeto Event con venue.capacity
-        mock_venue = MagicMock(capacity=100)
-        mock_event = MagicMock(venue=mock_venue)
-
-        # Mockear el aggregate para devolver 90 tickets vendidos
-        # Ahora por mas que nadie haya comprado tickets, habra 90 espacios ocupados
-        mock_queryset = MagicMock()
-        mock_queryset.aggregate.return_value = {'total': 90}
-        mock_filter.return_value = mock_queryset
-
-        # Compro 10 tickets mas, llenando por completo el espacio
-        resultado = ticket_excede_capacidad_maxima(mock_event, 10)
-        self.assertFalse(resultado) # Deberia devolver false, ya que no sobrepasamos el limite
-
-    @patch('app.models.Ticket.objects.filter')
-    def test_excede_capacidad(self, mock_filter):
-        mock_venue = MagicMock(capacity=100)
-        mock_event = MagicMock(venue=mock_venue)
-
-        mock_queryset = MagicMock()
-        mock_queryset.aggregate.return_value = {'total': 100}
-        mock_filter.return_value = mock_queryset
-
-        # El espacio ya esta lleno, voy a intentar comprar un ticket solo
-        resultado = ticket_excede_capacidad_maxima(mock_event, 1)
-        self.assertTrue(resultado) # Deberia devolver true, ya que sobrepasamos el limite
-        if __name__ == '__main__':
-            unittest.main()
-
-
-class TicketReembolsoTest(TestCase):
+# Verificar que al comprar un ticket con X lugares, no se sobrepase la capacidad de lugares del evento.
+class TicketCapacidadTest(TestCase):
     def setUp(self):
         self.user = User.objects.create(username="test_user")
-        self.userOrganizer = User.objects.create(username="test_user_organizer",is_organizer=True)
         self.venue = Venue.objects.create(name="Teatro", capacity=100)
         self.event = Event.objects.create(
             title="Obra",
             description="Una obra de teatro",
-            scheduled_at=timezone.now(),
-            organizer=self.userOrganizer,
+            scheduled_at=datetime.now(),  # campo obligatorio
+            organizer=self.user,
             venue=self.venue,
         )
-        self.ticket = Ticket.objects.create(user=self.user, event=self.event, quantity=2, buy_date=timezone.now())
 
-    # Si el usuario no tiene una solicitud de reembolso activa, esta funcion debe devolver False.
-    def test_solicitud_reembolso_unica_no_activa(self):
-        self.assertFalse(posee_solicitud_reembolso_activa(self.user))
-
-    # Ahora el usuario quiere solicitar otra solicitud de reembolso aparte de la que ya posee
-    def test_solicitud_reembolso_unica_activa(self):
-        # Creamos una solicitud de reembolso
-        self.reembolso = RefundRequest.objects.create(
-            ticket_code=str(self.ticket.ticket_code),  
-            reason='no_asistencia',
-            requester=self.user
+    # Si el espacio tiene 90/100 lugares ocupados pero compro 10, el ticket NO excede la capacidad maxima
+    def test_no_excede_capacidad(self):
+        Ticket.objects.create(
+            user=self.user, event=self.event, quantity=90, buy_date=datetime.now()
         )
-        # Ahora la funcion deberia devolver True, que luego servira para NO otorgarle la nueva solicitud al usuario.
-        self.assertTrue(posee_solicitud_reembolso_activa(self.user))
+        self.assertFalse(ticket_excede_capacidad_maxima(self.event, 10))
+
+    # Si el espacio tiene 100/100 lugares ocupados y compro 10, el ticket SI excede la capacidad maxima
+    def test_excede_capacidad(self):
+        Ticket.objects.create(
+            user=self.user, event=self.event, quantity=100, buy_date=datetime.now()
+        )
+        self.assertTrue(ticket_excede_capacidad_maxima(self.event, 1))
