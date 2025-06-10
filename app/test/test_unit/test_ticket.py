@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
 import unittest
 from django.test import TestCase
+from django.utils import timezone
 from unittest.mock import patch, MagicMock
 from app.models import *
 from app.views import *
