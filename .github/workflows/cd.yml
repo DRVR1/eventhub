@@ -54,7 +54,7 @@ jobs:
   deploy-render:
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: entorno    # Debe coincidir con tu Environment en GitHub
+    environment: entorno
 
     steps:
       - name: Deploy to Render
