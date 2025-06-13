@@ -1,8 +1,6 @@
 name: Deploy continuo
 
 on:
-  release:
-    types: [published]
   workflow_run:
     workflows: ["Integracion continua"]
     types: [completed]
